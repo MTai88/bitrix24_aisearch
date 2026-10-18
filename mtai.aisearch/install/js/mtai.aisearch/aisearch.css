@@ -1,0 +1,47 @@
+.mtai-aisearch-block {
+	padding: 10px 14px 12px;
+	background: #f4f7fb;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.mtai-aisearch-title {
+	font-weight: 600;
+	font-size: 13px;
+	margin-bottom: 6px;
+}
+
+.mtai-aisearch-answer {
+	font-size: 13px;
+	line-height: 1.45;
+	max-height: 180px;
+	overflow: auto;
+}
+
+.mtai-aisearch-answer a {
+	color: #2066b0;
+}
+
+.mtai-aisearch-sources {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+}
+
+.mtai-aisearch-sources li {
+	margin: 2px 0;
+}
+
+.mtai-aisearch-sources a {
+	color: #2066b0;
+	text-decoration: none;
+}
+
+.mtai-aisearch-status {
+	color: #6a737d;
+	font-size: 12px;
+}
+
+.mtai-aisearch-btn {
+	margin-top: 2px;
+}
