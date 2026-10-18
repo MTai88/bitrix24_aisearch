@@ -38,6 +38,7 @@ $checkboxes = ['hybrid_enabled', 'answer_enabled'];
 $strings = [
 	'vector_index', 'rrf_k', 'weight_bm25', 'weight_knn', 'knn_size', 'knn_min_score',
 	'hybrid_min_length', 'embed_timeout', 'doc_text_limit', 'batch_size', 'max_attempts',
+	'knn_outlier_z', 'knn_semantic_max',
 	'query_cache_ttl', 'answer_mode', 'answer_min_length', 'answer_debounce',
 	'answer_search_sources', 'answer_kb_sources', 'answer_kb_scopes', 'answer_context_chars',
 	'answer_source_chars', 'answer_system_prompt', 'answer_model', 'answer_cache_ttl',
@@ -141,13 +142,26 @@ $rankTable = static function (array $rows): string {
 	{
 		return '<p>—</p>';
 	}
-	$html = '<table class="internal"><tr class="heading"><td>#</td><td>id</td><td>type</td><td>title</td><td>score</td></tr>';
+	$hasReason = false;
+	foreach ($rows as $row)
+	{
+		if (isset($row['reason']))
+		{
+			$hasReason = true;
+			break;
+		}
+	}
+	$html = '<table class="internal"><tr class="heading"><td>#</td><td>id</td><td>type</td><td>title</td><td>score</td>'
+		. ($hasReason ? '<td>' . Loc::getMessage('MTAI_AISEARCH_REASON') . '</td>' : '')
+		. '</tr>';
 	foreach (array_slice($rows, 0, 15) as $row)
 	{
 		$html .= '<tr><td>' . (int)$row['rank'] . '</td><td>' . htmlspecialcharsbx((string)$row['id'])
 			. '</td><td>' . htmlspecialcharsbx((string)$row['type']) . '</td><td>'
 			. htmlspecialcharsbx((string)$row['title']) . '</td><td>'
-			. htmlspecialcharsbx((string)($row['score'] ?? '')) . '</td></tr>';
+			. htmlspecialcharsbx((string)($row['score'] ?? '')) . '</td>'
+			. ($hasReason ? '<td>' . htmlspecialcharsbx((string)($row['reason'] ?? '')) . '</td>' : '')
+			. '</tr>';
 	}
 	$html .= '</table>';
 
@@ -187,6 +201,14 @@ $rankTable = static function (array $rows): string {
 			<?= Loc::getMessage('MTAI_AISEARCH_OPT_KNN_SIZE') ?>
 			<input type="text" size="4" name="knn_size" value="<?= $val('knn_size', '20') ?>">
 			min_score <input type="text" size="5" name="knn_min_score" value="<?= $val('knn_min_score', '0.35') ?>">
+		</td>
+	</tr>
+	<tr>
+		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_OUTLIER') ?>:</td>
+		<td>
+			z <input type="text" size="4" name="knn_outlier_z" value="<?= $val('knn_outlier_z', '3.5') ?>">
+			<?= Loc::getMessage('MTAI_AISEARCH_OPT_SEMANTIC_MAX') ?>
+			<input type="text" size="3" name="knn_semantic_max" value="<?= $val('knn_semantic_max', '3') ?>">
 		</td>
 	</tr>
 	<tr>

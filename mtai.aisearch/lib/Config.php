@@ -126,6 +126,16 @@ final class Config
 		return max(0.0, self::getFloat('knn_min_score', 0.35));
 	}
 
+	public static function knnOutlierZ(): float
+	{
+		return max(0.0, self::getFloat('knn_outlier_z', 3.5));
+	}
+
+	public static function knnSemanticMax(): int
+	{
+		return max(0, self::getInt('knn_semantic_max', 3));
+	}
+
 	public static function hybridMinLength(): int
 	{
 		return max(1, self::getInt('hybrid_min_length', 3));

@@ -22,6 +22,9 @@ final class HybridSearch
 	/** @var array<string, mixed>|null */
 	private static ?array $lastContext = null;
 
+	/** @var array<string, string> id документа kNN => bm25|lexical|outlier|dropped */
+	private array $lastReasons = [];
+
 	public static function onSearchHits(Event $event): ?EventResult
 	{
 		if (self::$capture)
@@ -119,6 +122,12 @@ final class HybridSearch
 			{
 				$knn = $this->knn($vector, $entityTypes, $iblockIds, $categoryId);
 				$merged = $this->fuse($query, $bm25, $knn);
+				foreach ($knn as &$knnHit)
+				{
+					$id = (string)($knnHit['_id'] ?? '');
+					$knnHit['_reason'] = $this->lastReasons[$id] ?? 'dropped';
+				}
+				unset($knnHit);
 			}
 		}
 		catch (\Throwable $e)
@@ -170,6 +179,36 @@ final class HybridSearch
 	 */
 	private function fuse(string $query, array $bm25Hits, array $knnHits): array
 	{
+		$decision = $this->decide($query, $bm25Hits, $knnHits);
+		$this->lastReasons = $decision['reasons'];
+
+		$limit = 50;
+		if (Loader::includeModule('mtai.opensearch'))
+		{
+			$limit = max(1, \Mtai\OpenSearch\Config::searchLimit() * \Mtai\OpenSearch\Config::candidateFactor());
+		}
+
+		return Rrf::merge(
+			$bm25Hits,
+			$decision['keep'],
+			$decision['sources'],
+			Config::weightBm25(),
+			Config::weightKnn(),
+			Config::rrfK(),
+			$limit
+		);
+	}
+
+	/**
+	 * Хиты BM25 остаются. Сосед по вектору проходит, если во всём документе
+	 * есть общее слово с запросом или его оценка заметно выше остальных.
+	 *
+	 * @param array[] $bm25Hits
+	 * @param array[] $knnHits
+	 * @return array{keep: array[], reasons: array<string, string>, sources: array<string, array>}
+	 */
+	private function decide(string $query, array $bm25Hits, array $knnHits): array
+	{
 		$known = [];
 		foreach ($bm25Hits as $hit)
 		{
@@ -190,56 +229,242 @@ final class HybridSearch
 			}
 		}
 
-		// Соседи по вектору без общего слова в названии выглядят как случайный мусор
-		// («Копейка» не должна тащить чужие сделки и сотрудников). Хиты BM25 не трогаем.
 		$sources = $this->loadSources($missing);
-		$knnHits = array_values(array_filter(
-			$knnHits,
-			function (array $hit) use ($query, $known, $sources): bool {
-				$id = (string)($hit['_id'] ?? '');
-				if ($id === '' || isset($known[$id]))
-				{
-					return $id !== '';
-				}
-				$source = $sources[$id] ?? null;
-				if (!is_array($source))
-				{
-					return false;
-				}
-				$text = trim((string)($source['title'] ?? '') . ' ' . (string)($source['subtitle'] ?? ''));
-
-				return $this->sharesTerm($query, $text);
+		$lexicalIds = $this->lexicalIds($query, $missing);
+		$lexical = array_fill_keys($lexicalIds ?? [], true);
+		foreach ($missing as $id)
+		{
+			if (isset($lexical[$id]))
+			{
+				continue;
 			}
-		));
-		$missing = [];
+			$source = $sources[$id] ?? null;
+			if (is_array($source) && $this->sharesTerm($query, $this->documentText($source)))
+			{
+				$lexical[$id] = true;
+			}
+		}
+
+		$candidates = [];
 		foreach ($knnHits as $hit)
 		{
 			$id = (string)($hit['_id'] ?? '');
-			if ($id !== '' && !isset($known[$id]))
+			if ($id === '' || isset($known[$id]) || isset($lexical[$id]))
 			{
-				$missing[] = $id;
+				continue;
+			}
+			$candidates[] = $hit;
+		}
+		$outliers = array_fill_keys($this->outlierIds($knnHits, $candidates), true);
+
+		$reasons = [];
+		$keep = [];
+		foreach ($knnHits as $hit)
+		{
+			$id = (string)($hit['_id'] ?? '');
+			if ($id === '')
+			{
+				continue;
+			}
+			if (isset($known[$id]))
+			{
+				$reasons[$id] = 'bm25';
+				$keep[] = $hit;
+			}
+			elseif (isset($lexical[$id]))
+			{
+				$reasons[$id] = 'lexical';
+				$keep[] = $hit;
+			}
+			elseif (isset($outliers[$id]))
+			{
+				$reasons[$id] = 'outlier';
+				$keep[] = $hit;
+			}
+			else
+			{
+				$reasons[$id] = 'dropped';
 			}
 		}
 
-		$limit = 50;
-		if (Loader::includeModule('mtai.opensearch'))
-		{
-			$limit = max(1, \Mtai\OpenSearch\Config::searchLimit() * \Mtai\OpenSearch\Config::candidateFactor());
-		}
-
-		return Rrf::merge(
-			$bm25Hits,
-			$knnHits,
-			$sources,
-			Config::weightBm25(),
-			Config::weightKnn(),
-			Config::rrfK(),
-			$limit
-		);
+		return [
+			'keep' => $keep,
+			'reasons' => $reasons,
+			'sources' => $sources,
+		];
 	}
 
 	/**
-	 * Общее слово запроса и названия: точное совпадение, префикс («Иван»/«Иванов»)
+	 * Документы среди $ids, в которых морфология OpenSearch находит слово запроса.
+	 * null — запрос к индексу не выполнился, тогда сравнение делается по тексту.
+	 *
+	 * @param string[] $ids
+	 * @return string[]|null
+	 */
+	private function lexicalIds(string $query, array $ids): ?array
+	{
+		$ids = array_values(array_unique(array_filter($ids)));
+		$query = trim($query);
+		if ($ids === [])
+		{
+			return [];
+		}
+		if ($query === '' || !Loader::includeModule('mtai.opensearch'))
+		{
+			return null;
+		}
+
+		try
+		{
+			$response = (new OpenSearchClient())->search(\Mtai\OpenSearch\IndexManager::indexName(), [
+				'size' => count($ids),
+				'_source' => false,
+				'query' => [
+					'bool' => [
+						'filter' => [['ids' => ['values' => $ids]]],
+						'must' => [[
+							'multi_match' => [
+								'query' => $query,
+								'fields' => ['title', 'subtitle', 'fields.*'],
+								'type' => 'best_fields',
+								'minimum_should_match' => '1',
+							],
+						]],
+					],
+				],
+			]);
+		}
+		catch (\Throwable $e)
+		{
+			AddMessage2Log('mtai.aisearch lexical: ' . $e->getMessage(), Config::MODULE_ID);
+
+			return null;
+		}
+
+		$found = [];
+		foreach ((array)($response['hits']['hits'] ?? []) as $hit)
+		{
+			$id = (string)($hit['_id'] ?? '');
+			if ($id !== '')
+			{
+				$found[] = $id;
+			}
+		}
+
+		return $found;
+	}
+
+	/**
+	 * Оценки считаются по всей выдаче kNN. В подсказку из тех, кто не прошёл
+	 * по слову, попадают только самые верхние, не больше knn_semantic_max.
+	 *
+	 * @param array[] $knnHits
+	 * @param array[] $candidates
+	 * @return string[]
+	 */
+	private function outlierIds(array $knnHits, array $candidates): array
+	{
+		$scores = [];
+		foreach ($knnHits as $hit)
+		{
+			$scores[] = (float)($hit['_score'] ?? 0);
+		}
+		$count = count($scores);
+		if ($count < 2 || $candidates === [])
+		{
+			return [];
+		}
+
+		$mean = array_sum($scores) / $count;
+		$variance = 0.0;
+		foreach ($scores as $score)
+		{
+			$variance += ($score - $mean) ** 2;
+		}
+		$stdev = sqrt($variance / $count);
+		if ($stdev < 0.000001)
+		{
+			return [];
+		}
+
+		$threshold = max(Config::knnMinScore(), $mean + Config::knnOutlierZ() * $stdev);
+		$passed = [];
+		foreach ($candidates as $hit)
+		{
+			if ((float)($hit['_score'] ?? 0) >= $threshold)
+			{
+				$passed[] = $hit;
+			}
+		}
+		usort($passed, static fn (array $left, array $right): int => ((float)$right['_score']) <=> ((float)$left['_score']));
+		$passed = array_slice($passed, 0, Config::knnSemanticMax());
+
+		$ids = [];
+		foreach ($passed as $hit)
+		{
+			$id = (string)($hit['_id'] ?? '');
+			if ($id !== '')
+			{
+				$ids[] = $id;
+			}
+		}
+
+		return $ids;
+	}
+
+	private function documentText(array $source): string
+	{
+		$parts = [
+			trim((string)($source['title'] ?? '')),
+			trim((string)($source['subtitle'] ?? '')),
+		];
+		$fields = $source['fields'] ?? [];
+		if (is_array($fields))
+		{
+			foreach ($fields as $code => $value)
+			{
+				if (str_ends_with((string)$code, '.en'))
+				{
+					continue;
+				}
+				$flat = $this->flattenField($value);
+				if ($flat !== '')
+				{
+					$parts[] = $flat;
+				}
+			}
+		}
+
+		return trim(implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')));
+	}
+
+	private function flattenField($value): string
+	{
+		if (is_array($value))
+		{
+			$chunks = [];
+			foreach ($value as $item)
+			{
+				$flat = $this->flattenField($item);
+				if ($flat !== '')
+				{
+					$chunks[] = $flat;
+				}
+			}
+
+			return implode(' ', $chunks);
+		}
+		if (is_bool($value) || $value === null)
+		{
+			return '';
+		}
+
+		return trim((string)$value);
+	}
+
+	/**
+	 * Запасное сравнение, если морфологический запрос к индексу не выполнился.
+	 * Смотрит весь текст документа: точное совпадение, префикс («Иван»/«Иванов»)
 	 * или первые 5 букв («поставки»/«поставка»).
 	 */
 	private function sharesTerm(string $query, string $text): bool
@@ -494,13 +719,18 @@ final class HybridSearch
 		foreach ($hits as $hit)
 		{
 			$source = (array)($hit['_source'] ?? []);
-			$rows[] = [
+			$row = [
 				'rank' => $rank++,
 				'id' => (string)($hit['_id'] ?? ''),
 				'title' => (string)($source['title'] ?? ''),
 				'type' => (string)($source['entity_type'] ?? ''),
 				'score' => isset($hit['_score']) ? round((float)$hit['_score'], 4) : null,
 			];
+			if (isset($hit['_reason']))
+			{
+				$row['reason'] = (string)$hit['_reason'];
+			}
+			$rows[] = $row;
 		}
 
 		return $rows;
