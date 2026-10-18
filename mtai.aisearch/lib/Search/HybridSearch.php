@@ -118,7 +118,7 @@ final class HybridSearch
 			else
 			{
 				$knn = $this->knn($vector, $entityTypes, $iblockIds, $categoryId);
-				$merged = $this->fuse($bm25, $knn);
+				$merged = $this->fuse($query, $bm25, $knn);
 			}
 		}
 		catch (\Throwable $e)
@@ -160,7 +160,7 @@ final class HybridSearch
 
 		$knn = $this->knn($vector, $entityTypes, $iblockIds, $categoryId);
 
-		return $this->fuse($bm25Hits, $knn);
+		return $this->fuse($query, $bm25Hits, $knn);
 	}
 
 	/**
@@ -168,7 +168,7 @@ final class HybridSearch
 	 * @param array[] $knnHits
 	 * @return array[]
 	 */
-	private function fuse(array $bm25Hits, array $knnHits): array
+	private function fuse(string $query, array $bm25Hits, array $knnHits): array
 	{
 		$known = [];
 		foreach ($bm25Hits as $hit)
@@ -190,6 +190,37 @@ final class HybridSearch
 			}
 		}
 
+		// Соседи по вектору без общего слова в названии выглядят как случайный мусор
+		// («Копейка» не должна тащить чужие сделки и сотрудников). Хиты BM25 не трогаем.
+		$sources = $this->loadSources($missing);
+		$knnHits = array_values(array_filter(
+			$knnHits,
+			function (array $hit) use ($query, $known, $sources): bool {
+				$id = (string)($hit['_id'] ?? '');
+				if ($id === '' || isset($known[$id]))
+				{
+					return $id !== '';
+				}
+				$source = $sources[$id] ?? null;
+				if (!is_array($source))
+				{
+					return false;
+				}
+				$text = trim((string)($source['title'] ?? '') . ' ' . (string)($source['subtitle'] ?? ''));
+
+				return $this->sharesTerm($query, $text);
+			}
+		));
+		$missing = [];
+		foreach ($knnHits as $hit)
+		{
+			$id = (string)($hit['_id'] ?? '');
+			if ($id !== '' && !isset($known[$id]))
+			{
+				$missing[] = $id;
+			}
+		}
+
 		$limit = 50;
 		if (Loader::includeModule('mtai.opensearch'))
 		{
@@ -199,12 +230,77 @@ final class HybridSearch
 		return Rrf::merge(
 			$bm25Hits,
 			$knnHits,
-			$this->loadSources($missing),
+			$sources,
 			Config::weightBm25(),
 			Config::weightKnn(),
 			Config::rrfK(),
 			$limit
 		);
+	}
+
+	/**
+	 * Общее слово запроса и названия: точное совпадение, префикс («Иван»/«Иванов»)
+	 * или первые 5 букв («поставки»/«поставка»).
+	 */
+	private function sharesTerm(string $query, string $text): bool
+	{
+		$queryTokens = $this->tokens($query);
+		$textTokens = $this->tokens($text);
+		foreach ($queryTokens as $queryToken)
+		{
+			foreach ($textTokens as $textToken)
+			{
+				if ($this->sameStem($queryToken, $textToken))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/** @return string[] */
+	private function tokens(string $text): array
+	{
+		$text = mb_strtolower($text);
+		$parts = preg_split('/[^\p{L}\p{N}]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+		if (!is_array($parts))
+		{
+			return [];
+		}
+		$tokens = [];
+		foreach ($parts as $part)
+		{
+			if (mb_strlen($part) >= 3)
+			{
+				$tokens[] = $part;
+			}
+		}
+
+		return $tokens;
+	}
+
+	private function sameStem(string $left, string $right): bool
+	{
+		if ($left === $right)
+		{
+			return true;
+		}
+		$shorter = mb_strlen($left) <= mb_strlen($right) ? $left : $right;
+		$longer = $shorter === $left ? $right : $left;
+		if (mb_strlen($shorter) >= 4 && mb_strpos($longer, $shorter) === 0)
+		{
+			return true;
+		}
+		$prefix = 5;
+		if (mb_strlen($left) >= $prefix && mb_strlen($right) >= $prefix
+			&& mb_substr($left, 0, $prefix) === mb_substr($right, 0, $prefix))
+		{
+			return true;
+		}
+
+		return false;
 	}
 
 	/** @return float[]|null */
