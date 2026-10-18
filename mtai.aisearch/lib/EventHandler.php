@@ -3,12 +3,10 @@
 namespace Mtai\AiSearch;
 
 use Bitrix\Main\EventManager;
-use Bitrix\Main\Web\Json;
-use Mtai\AiSearch\Answer\Answerer;
 use Mtai\AiSearch\Search\HybridSearch;
 use Mtai\AiSearch\Vector\Queue;
 
-/** Подписка на события opensearch и вывод блока «Ответ AI» в шапке. */
+/** Подписка на события opensearch. Отдельный блок в подсказке не выводится. */
 final class EventHandler
 {
 	public static function register(): void
@@ -104,52 +102,14 @@ final class EventHandler
 		\CAgent::RemoveModuleAgents($module);
 	}
 
+	/**
+	 * Отдельный блок в подсказке не рисуется. Совпадения по смыслу
+	 * приходят в том же ответе поиска и попадают в штатные секции
+	 * (сделки, контакты, компании, лиды) и в секции opensearch
+	 * (сотрудники, инфоблоки).
+	 */
 	public static function onEndBufferContent(&$content): void
 	{
-		try
-		{
-			if (!Config::answerEnabled())
-			{
-				return;
-			}
-
-			$request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
-			if ($request->get('ajax_call') === 'y')
-			{
-				return;
-			}
-
-			global $USER;
-			if (!isset($USER) || !($USER instanceof \CUser) || !$USER->IsAuthorized())
-			{
-				return;
-			}
-			if (!(new Answerer())->allowed((int)$USER->GetID()))
-			{
-				return;
-			}
-
-			$pos = mb_strripos($content, '</body>');
-			if ($pos === false)
-			{
-				return;
-			}
-
-			$config = Json::encode([
-				'mode' => Config::answerMode(),
-				'minLength' => Config::answerMinLength(),
-				'debounce' => Config::answerDebounce(),
-			], JSON_UNESCAPED_UNICODE);
-
-			$assets = '<link rel="stylesheet" href="/bitrix/js/mtai.aisearch/aisearch.css">'
-				. '<script>window.MtaiAiSearchConfig=' . $config . ';</script>'
-				. '<script src="/bitrix/js/mtai.aisearch/aisearch.js" defer></script>';
-
-			$content = mb_substr($content, 0, $pos) . $assets . mb_substr($content, $pos);
-		}
-		catch (\Throwable)
-		{
-		}
 	}
 
 	public static function onBuildGlobalMenu(&$aGlobalMenu, &$aModuleMenu): void

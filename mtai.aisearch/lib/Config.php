@@ -158,7 +158,7 @@ final class Config
 
 	public static function answerMode(): string
 	{
-		return self::get('answer_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+		return 'auto';
 	}
 
 	public static function answerMinLength(): int

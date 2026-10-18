@@ -222,10 +222,8 @@ $rankTable = static function (array $rows): string {
 	<tr>
 		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_MODE') ?>:</td>
 		<td>
-			<select name="answer_mode">
-				<option value="manual"<?= $val('answer_mode', 'manual') === 'manual' ? ' selected' : '' ?>>manual</option>
-				<option value="auto"<?= $val('answer_mode', 'manual') === 'auto' ? ' selected' : '' ?>>auto</option>
-			</select>
+			<?= Loc::getMessage('MTAI_AISEARCH_OPT_MODE_HINT') ?>
+			<input type="hidden" name="answer_mode" value="auto">
 		</td>
 	</tr>
 	<tr>

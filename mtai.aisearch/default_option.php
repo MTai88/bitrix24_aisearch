@@ -22,7 +22,7 @@ $mtai_aisearch_default_option = [
 
 	// Блок «Ответ AI» в подсказке шапки.
 	'answer_enabled' => 'N',
-	'answer_mode' => 'manual',
+	'answer_mode' => 'auto',
 	'answer_min_length' => '3',
 	'answer_debounce' => '800',
 	'answer_search_sources' => '5',
