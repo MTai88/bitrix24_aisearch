@@ -42,7 +42,6 @@ final class Status
 
 		return [
 			'hybrid_enabled' => Config::hybridEnabled(),
-			'answer_enabled' => Config::answerEnabled(),
 			'problems' => Dependency::problems(),
 			'embedder' => $embedder->title(),
 			'semantic' => $embedder->isSemantic(),

@@ -1,6 +1,6 @@
 <?php
 /**
- * Настройки mtai.aisearch: гибридный поиск и блок «Ответ AI».
+ * Настройки mtai.aisearch: гибридный поиск.
  *
  * @global CMain $APPLICATION
  * @global string $mid
@@ -34,15 +34,12 @@ $note = null;
 $error = null;
 $explain = null;
 
-$checkboxes = ['hybrid_enabled', 'answer_enabled'];
+$checkboxes = ['hybrid_enabled'];
 $strings = [
 	'vector_index', 'rrf_k', 'weight_bm25', 'weight_knn', 'knn_size', 'knn_min_score',
 	'hybrid_min_length', 'embed_timeout', 'doc_text_limit', 'batch_size', 'max_attempts',
 	'knn_outlier_z', 'knn_semantic_max',
-	'query_cache_ttl', 'answer_mode', 'answer_min_length', 'answer_debounce',
-	'answer_search_sources', 'answer_kb_sources', 'answer_kb_scopes', 'answer_context_chars',
-	'answer_source_chars', 'answer_system_prompt', 'answer_model', 'answer_cache_ttl',
-	'answer_rate_limit', 'answer_groups',
+	'query_cache_ttl',
 ];
 
 if ($request->isPost() && check_bitrix_sessid() && $POST_RIGHT >= 'W')
@@ -121,12 +118,6 @@ $aTabs = [
 		'TAB' => Loc::getMessage('MTAI_AISEARCH_TAB_HYBRID'),
 		'ICON' => 'main_settings',
 		'TITLE' => Loc::getMessage('MTAI_AISEARCH_TAB_HYBRID_TITLE'),
-	],
-	[
-		'DIV' => 'tab_answer',
-		'TAB' => Loc::getMessage('MTAI_AISEARCH_TAB_ANSWER'),
-		'ICON' => 'main_settings',
-		'TITLE' => Loc::getMessage('MTAI_AISEARCH_TAB_ANSWER_TITLE'),
 	],
 	[
 		'DIV' => 'tab_status',
@@ -234,69 +225,6 @@ $rankTable = static function (array $rows): string {
 	<tr>
 		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_QUERY_CACHE') ?>:</td>
 		<td><input type="text" size="6" name="query_cache_ttl" value="<?= $val('query_cache_ttl', '3600') ?>"></td>
-	</tr>
-
-	<?php $tabControl->BeginNextTab(); ?>
-	<tr>
-		<td width="40%"><?= Loc::getMessage('MTAI_AISEARCH_OPT_ANSWER') ?>:</td>
-		<td><input type="checkbox" name="answer_enabled" value="Y"<?= $checked('answer_enabled') ?>></td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_MODE') ?>:</td>
-		<td>
-			<?= Loc::getMessage('MTAI_AISEARCH_OPT_MODE_HINT') ?>
-			<input type="hidden" name="answer_mode" value="auto">
-		</td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_ANSWER_MIN') ?>:</td>
-		<td>
-			<input type="text" size="4" name="answer_min_length" value="<?= $val('answer_min_length', '3') ?>">
-			debounce <input type="text" size="5" name="answer_debounce" value="<?= $val('answer_debounce', '800') ?>"> мс
-		</td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_SOURCES') ?>:</td>
-		<td>
-			<?= Loc::getMessage('MTAI_AISEARCH_OPT_SOURCES_SEARCH') ?>
-			<input type="text" size="3" name="answer_search_sources" value="<?= $val('answer_search_sources', '5') ?>">
-			<?= Loc::getMessage('MTAI_AISEARCH_OPT_SOURCES_KB') ?>
-			<input type="text" size="3" name="answer_kb_sources" value="<?= $val('answer_kb_sources', '3') ?>">
-		</td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_KB_SCOPES') ?>:</td>
-		<td><input type="text" size="30" name="answer_kb_scopes" value="<?= $val('answer_kb_scopes', 'public,internal') ?>"></td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_CONTEXT') ?>:</td>
-		<td>
-			<input type="text" size="6" name="answer_context_chars" value="<?= $val('answer_context_chars', '6000') ?>">
-			/ <input type="text" size="6" name="answer_source_chars" value="<?= $val('answer_source_chars', '1200') ?>">
-		</td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_MODEL') ?>:</td>
-		<td><input type="text" size="30" name="answer_model" value="<?= $val('answer_model', '') ?>" placeholder="<?= Loc::getMessage('MTAI_AISEARCH_OPT_MODEL_PH') ?>"></td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_CACHE_RATE') ?>:</td>
-		<td>
-			TTL <input type="text" size="5" name="answer_cache_ttl" value="<?= $val('answer_cache_ttl', '300') ?>">
-			<?= Loc::getMessage('MTAI_AISEARCH_OPT_RATE') ?>
-			<input type="text" size="4" name="answer_rate_limit" value="<?= $val('answer_rate_limit', '10') ?>">
-		</td>
-	</tr>
-	<tr>
-		<td><?= Loc::getMessage('MTAI_AISEARCH_OPT_GROUPS') ?>:</td>
-		<td>
-			<input type="text" size="30" name="answer_groups" value="<?= $val('answer_groups', '') ?>">
-			<br><small><?= Loc::getMessage('MTAI_AISEARCH_OPT_GROUPS_HINT') ?></small>
-		</td>
-	</tr>
-	<tr>
-		<td valign="top"><?= Loc::getMessage('MTAI_AISEARCH_OPT_PROMPT') ?>:</td>
-		<td><textarea name="answer_system_prompt" rows="6" cols="60"><?= $val('answer_system_prompt', '') ?></textarea></td>
 	</tr>
 
 	<?php $tabControl->BeginNextTab(); ?>

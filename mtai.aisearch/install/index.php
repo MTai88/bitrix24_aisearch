@@ -108,13 +108,6 @@ class mtai_aisearch extends CModule
 
 	public function InstallFiles(): bool
 	{
-		CopyDirFiles(
-			__DIR__ . '/js/mtai.aisearch',
-			$_SERVER['DOCUMENT_ROOT'] . '/bitrix/js/mtai.aisearch',
-			true,
-			true
-		);
-
 		$stubPath = $_SERVER['DOCUMENT_ROOT'] . '/bitrix/admin/mtai_aisearch.php';
 		CheckDirPath(dirname($stubPath) . '/');
 		file_put_contents(

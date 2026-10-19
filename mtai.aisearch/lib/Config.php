@@ -89,11 +89,6 @@ final class Config
 		return self::getBool('hybrid_enabled');
 	}
 
-	public static function answerEnabled(): bool
-	{
-		return self::getBool('answer_enabled');
-	}
-
 	public static function vectorIndex(): string
 	{
 		$name = self::get('vector_index', 'bitrix24_morpho_vectors');
@@ -164,86 +159,5 @@ final class Config
 	public static function queryCacheTtl(): int
 	{
 		return max(0, self::getInt('query_cache_ttl', 3600));
-	}
-
-	public static function answerMode(): string
-	{
-		return 'auto';
-	}
-
-	public static function answerMinLength(): int
-	{
-		return max(1, self::getInt('answer_min_length', 3));
-	}
-
-	public static function answerDebounce(): int
-	{
-		return max(200, self::getInt('answer_debounce', 800));
-	}
-
-	public static function answerSearchSources(): int
-	{
-		return max(1, self::getInt('answer_search_sources', 5));
-	}
-
-	public static function answerKbSources(): int
-	{
-		return max(0, self::getInt('answer_kb_sources', 3));
-	}
-
-	/** @return string[] public|internal */
-	public static function answerKbScopes(): array
-	{
-		$raw = self::get('answer_kb_scopes', 'public,internal');
-		$scopes = array_values(array_filter(array_map('trim', explode(',', $raw))));
-
-		return $scopes !== [] ? $scopes : ['public', 'internal'];
-	}
-
-	public static function answerContextChars(): int
-	{
-		return max(500, self::getInt('answer_context_chars', 6000));
-	}
-
-	public static function answerSourceChars(): int
-	{
-		return max(100, self::getInt('answer_source_chars', 1200));
-	}
-
-	public static function answerSystemPrompt(): string
-	{
-		return self::get('answer_system_prompt', '');
-	}
-
-	public static function answerModel(): string
-	{
-		return trim(self::get('answer_model', ''));
-	}
-
-	public static function answerCacheTtl(): int
-	{
-		return max(0, self::getInt('answer_cache_ttl', 300));
-	}
-
-	public static function answerRateLimit(): int
-	{
-		return max(0, self::getInt('answer_rate_limit', 10));
-	}
-
-	/** @return int[] пустой список — все авторизованные */
-	public static function answerGroups(): array
-	{
-		$raw = self::get('answer_groups', '');
-		$ids = [];
-		foreach (explode(',', $raw) as $part)
-		{
-			$id = (int)trim($part);
-			if ($id > 0)
-			{
-				$ids[] = $id;
-			}
-		}
-
-		return array_values(array_unique($ids));
 	}
 }

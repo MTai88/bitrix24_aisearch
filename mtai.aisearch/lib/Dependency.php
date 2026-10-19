@@ -6,7 +6,7 @@ use Bitrix\Main\Loader;
 use Bitrix\Main\ModuleManager;
 use Mtai\AiSearch\Vector\Embedder;
 
-/** Проверка модулей, без которых гибридный поиск и AI-ответ не работают. */
+/** Проверка модулей, без которых гибридный поиск не работает. */
 final class Dependency
 {
 	public static function opensearchInstalled(): bool

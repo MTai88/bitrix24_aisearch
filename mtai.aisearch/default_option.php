@@ -21,22 +21,6 @@ $mtai_aisearch_default_option = [
 	'batch_size' => '16',
 	'max_attempts' => '5',
 	'query_cache_ttl' => '3600',
-
-	// Блок «Ответ AI» в подсказке шапки.
-	'answer_enabled' => 'N',
-	'answer_mode' => 'auto',
-	'answer_min_length' => '3',
-	'answer_debounce' => '800',
-	'answer_search_sources' => '5',
-	'answer_kb_sources' => '3',
-	'answer_kb_scopes' => 'public,internal',
-	'answer_context_chars' => '6000',
-	'answer_source_chars' => '1200',
-	'answer_system_prompt' => '',
-	'answer_model' => '',
-	'answer_cache_ttl' => '300',
-	'answer_rate_limit' => '10',
-	'answer_groups' => '',
 ];
 
 return $mtai_aisearch_default_option;

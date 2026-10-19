@@ -2,11 +2,12 @@
 
 namespace Mtai\AiSearch;
 
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\EventManager;
 use Mtai\AiSearch\Search\HybridSearch;
 use Mtai\AiSearch\Vector\Queue;
 
-/** Подписка на события opensearch. Отдельный блок в подсказке не выводится. */
+/** Подписка на события opensearch. */
 final class EventHandler
 {
 	public static function register(): void
@@ -34,13 +35,6 @@ final class EventHandler
 			$module,
 			Queue::class,
 			'onAfterDeleteDocument'
-		);
-		$manager->registerEventHandlerCompatible(
-			'main',
-			'OnEndBufferContent',
-			$module,
-			self::class,
-			'onEndBufferContent'
 		);
 		$manager->registerEventHandlerCompatible(
 			'main',
@@ -103,13 +97,42 @@ final class EventHandler
 	}
 
 	/**
-	 * Отдельный блок в подсказке не рисуется. Совпадения по смыслу
-	 * приходят в том же ответе поиска и попадают в штатные секции
-	 * (сделки, контакты, компании, лиды) и в секции opensearch
-	 * (сотрудники, инфоблоки).
+	 * Снимает обработчик и опции удалённого блока «Ответ AI».
+	 * Вызывается один раз из include.php.
 	 */
-	public static function onEndBufferContent(&$content): void
+	public static function retireAnswer(): void
 	{
+		$module = Config::MODULE_ID;
+		EventManager::getInstance()->unRegisterEventHandler(
+			'main',
+			'OnEndBufferContent',
+			$module,
+			self::class,
+			'onEndBufferContent'
+		);
+
+		foreach ([
+			'answer_enabled',
+			'answer_mode',
+			'answer_min_length',
+			'answer_debounce',
+			'answer_search_sources',
+			'answer_kb_sources',
+			'answer_kb_scopes',
+			'answer_context_chars',
+			'answer_source_chars',
+			'answer_system_prompt',
+			'answer_model',
+			'answer_cache_ttl',
+			'answer_rate_limit',
+			'answer_groups',
+		] as $name)
+		{
+			Option::delete($module, ['name' => $name]);
+		}
+
+		Option::set($module, 'answer_retired', 'Y');
+		Config::reset();
 	}
 
 	public static function onBuildGlobalMenu(&$aGlobalMenu, &$aModuleMenu): void

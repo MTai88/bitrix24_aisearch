@@ -1,7 +1,7 @@
 <?php
 /**
- * Модуль mtai.aisearch — гибридный поиск (BM25 + kNN) и блок «Ответ AI»
- * в шапке портала. Зависит от mtai.opensearch и mtai.aiagent.
+ * Модуль mtai.aisearch — гибридный поиск (BM25 + kNN) в шапке портала.
+ * Зависит от mtai.opensearch и mtai.aiagent.
  */
 
 use Bitrix\Main\Loader;
@@ -22,11 +22,12 @@ Loader::registerAutoLoadClasses(
 		'Mtai\\AiSearch\\Vector\\Queue' => 'lib/Vector/Queue.php',
 		'Mtai\\AiSearch\\Search\\Rrf' => 'lib/Search/Rrf.php',
 		'Mtai\\AiSearch\\Search\\HybridSearch' => 'lib/Search/HybridSearch.php',
-		'Mtai\\AiSearch\\Answer\\Html' => 'lib/Answer/Html.php',
-		'Mtai\\AiSearch\\Answer\\Retriever' => 'lib/Answer/Retriever.php',
-		'Mtai\\AiSearch\\Answer\\PromptBuilder' => 'lib/Answer/PromptBuilder.php',
-		'Mtai\\AiSearch\\Answer\\Answerer' => 'lib/Answer/Answerer.php',
-		'Mtai\\AiSearch\\Controller\\Answer' => 'lib/controller/answer.php',
 		'Mtai\\AiSearch\\Controller\\Maintenance' => 'lib/controller/maintenance.php',
 	]
 );
+
+// Один раз снять обработчик и опции удалённого блока «Ответ AI».
+if (\Bitrix\Main\Config\Option::get('mtai.aisearch', 'answer_retired', 'N') !== 'Y')
+{
+	\Mtai\AiSearch\EventHandler::retireAnswer();
+}
